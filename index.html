@@ -855,7 +855,10 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
   <div class="chipsel sm" id="ivToQuick"><button type="button" data-to="Aéroport de Nice">Aéroport de Nice</button><button type="button" data-to="Nice">Nice</button><button type="button" data-to="Monaco">Monaco</button></div>
   <div class="label">Prix de base</div>
   <div class="ttcin sm"><input id="ivBase" type="text" inputmode="decimal" placeholder="0" autocomplete="off" aria-label="Prix de base"><span>€</span></div>
-  <div class="label">Suppléments</div>
+  <div class="row2"><div class="label">Attente / trafic</div><button class="copy" id="ivWaitAuto" type="button" hidden>Revenir au calcul auto</button></div>
+  <div class="ttcin sm"><input id="ivWait" type="text" inputmode="decimal" placeholder="0" autocomplete="off" aria-label="Attente ou trafic"><span>€</span></div>
+  <div class="note" id="ivWaitNote"></div>
+  <div class="label">Autres lignes</div>
   <div class="list" id="ivStops"></div>
   <div class="row3"><button class="btn sec sm" id="ivAddStop" type="button">＋ Dépose interm.</button><button class="btn sec sm" id="ivAddAR" type="button">＋ Aller / retour</button></div>
   <div class="card" style="gap:6px"><div class="mini" id="ivCalc"></div></div>
@@ -880,7 +883,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 <script>
 "use strict";
 /* ================= ARCHIV · noyau ================= */
-const APPV="1.3.0";
+const APPV="1.3.1";
 const CONTACT="Noaro.taxi@gmail.com";
 const APP_URL_DEFAULT="https://adminarcher.github.io/archiv/";
 const $=id=>document.getElementById(id);
@@ -2175,7 +2178,8 @@ $("goBtn").addEventListener("click",()=>{$("invBar").hidden=true;});
 
 function openInvoice(d,id){const r=rideOf(d,id);if(!r)return;const I=r.inv||null;
   const dest=r.dest||zoneOf(baseOf(r))||"";
-  ivCtx={d,id,from:I?I.f:"Monaco",to:I?I.t:dest,base:I?I.b:null,extras:I&&I.i?I.i.map(x=>({k:/^aller/i.test(x[0])?"ar":"stop",l:x[0],a:x[1]})):[],baseTouched:!!I};
+  ivCtx={d,id,from:I?I.f:"Monaco",to:I?I.t:dest,base:I?I.b:null,extras:I&&I.i?I.i.map(x=>({k:/^aller/i.test(x[0])?"ar":"stop",l:x[0],a:x[1]})):[],baseTouched:!!I,wait:null};
+  if(I){const sx=(I.i||[]).reduce((t,x)=>t+(+x[1]||0),0);if(Math.abs(I.b+I.w+sx-r.a)>0.005)ivCtx.wait=I.w;}
   if(!I&&norm(dest)===norm("Aéroport de Nice"))ivCtx.from="Monaco";
   $("ivTitle").textContent=I?"Facture "+I.no:"Facture";
   $("ivRide").innerHTML='Course de <b class="gold">'+esc(eur(r.a,true))+'</b> · '+esc(fmtK(d))+' · '+hh(r.t)+(r.v?' · van':'');
@@ -2195,26 +2199,35 @@ $("ivFrom").addEventListener("input",()=>{ivCtx.from=$("ivFrom").value;renderInv
 $("ivTo").addEventListener("input",()=>{ivCtx.to=$("ivTo").value;if(!ivCtx.baseTouched){const r=rideOf(ivCtx.d,ivCtx.id);ivCtx.base=baseFare(ivCtx.from,ivCtx.to,r&&r.v);$("ivBase").value=ivCtx.base!=null?String(ivCtx.base).replace(".",","):"";}renderInv();});
 $("ivToQuick").addEventListener("click",e=>{const b=e.target.closest("[data-to]");if(!b)return;$("ivTo").value=b.dataset.to;$("ivTo").dispatchEvent(new Event("input"));});
 $("ivBase").addEventListener("input",()=>{ivCtx.base=num($("ivBase").value);ivCtx.baseTouched=true;renderInv();});
+$("ivWait").addEventListener("input",()=>{const v=$("ivWait").value.trim();ivCtx.wait=v===""?null:num(v);renderInv();});
+$("ivWaitAuto").onclick=()=>{ivCtx.wait=null;$("ivWait").value="";renderInv();};
 $("ivAddStop").onclick=()=>{ivCtx.extras.push({k:"stop",l:"Dépose intermédiaire",a:null});renderStops();renderInv();const ins=$("ivStops").querySelectorAll("input[data-a]");if(ins.length)ins[ins.length-1].focus();};
 $("ivAddAR").onclick=()=>{ivCtx.extras.push({k:"ar",l:"Aller / retour",a:null});renderStops();renderInv();const ins=$("ivStops").querySelectorAll("input[data-a]");if(ins.length)ins[ins.length-1].focus();};
 function renderStops(){const L=$("ivStops");L.innerHTML=ivCtx.extras.map((x,i)=>'<div class="stoprow"><input class="tagin" data-l="'+i+'" value="'+esc(x.l)+'" aria-label="Libellé"><input class="tagin num" data-a="'+i+'" inputmode="decimal" placeholder="€" value="'+(x.a!=null?String(x.a).replace(".",","):"")+'" aria-label="Montant"><button class="btn sec sm" type="button" data-rm="'+i+'" aria-label="Retirer">✕</button></div>').join("")||'<div class="note">Aucun : ajoute une dépose intermédiaire ou un aller / retour si besoin.</div>';}
 $("ivStops").addEventListener("input",e=>{const t=e.target;if(t.dataset.l!=null)ivCtx.extras[+t.dataset.l].l=t.value;if(t.dataset.a!=null)ivCtx.extras[+t.dataset.a].a=num(t.value);renderInv();});
 $("ivStops").addEventListener("click",e=>{const b=e.target.closest("[data-rm]");if(!b)return;ivCtx.extras.splice(+b.dataset.rm,1);renderStops();renderInv();});
-function invCalc(){const r=rideOf(ivCtx.d,ivCtx.id);const tot=r2(r.a);const b=r2(ivCtx.base||0);const ex=ivCtx.extras.filter(x=>x.a>0);const sx=r2(ex.reduce((t,x)=>t+x.a,0));return {tot,b,ex,sx,w:r2(tot-b-sx)};}
+function invCalc(){const r=rideOf(ivCtx.d,ivCtx.id);const ride=r2(r.a);const b=r2(ivCtx.base||0);const ex=ivCtx.extras.filter(x=>x.a>0);const sx=r2(ex.reduce((t,x)=>t+x.a,0));
+  const manual=ivCtx.wait!=null;const w=manual?r2(ivCtx.wait):r2(ride-b-sx);const tot=manual?r2(b+w+sx):ride;return {ride,tot,b,ex,sx,w,manual};}
 function renderInv(){
   $("ivFromSeg").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",String(norm(b.dataset.f)===norm(ivCtx.from))));
   const v=norm(ivCtx.to);$("ivToQuick").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",String(norm(b.dataset.to)===v)));
   const C=invCalc();
+  if(document.activeElement!==$("ivWait")){$("ivWait").value=C.manual?String(C.w).replace(".",","):"";}
+  $("ivWait").placeholder=C.manual?"0":String(Math.max(0,C.w)).replace(".",",")+" (auto)";
+  $("ivWaitAuto").hidden=!C.manual;
+  $("ivWaitNote").textContent=C.manual?"Montant saisi à la main.":"Calculé tout seul : montant de la course − prix de base − autres lignes. Tape un montant pour le changer.";
   $("ivCalc").innerHTML='<div class="r"><span>Prix de base</span><span>'+esc(eur(C.b,true))+'</span></div>'+
-    '<div class="r"><span>Attente / trafic (calculé)</span><span style="color:'+(C.w<0?'var(--red-fg)':'inherit')+'">'+esc(eur(Math.max(0,C.w),true))+'</span></div>'+
+    '<div class="r"><span>Attente / trafic'+(C.manual?'':' (auto)')+'</span><span style="color:'+(C.w<0?'var(--red-fg)':'inherit')+'">'+esc(eur(Math.max(0,C.w),true))+'</span></div>'+
     C.ex.map(x=>'<div class="r"><span>'+esc(x.l||"Supplément")+'</span><span>'+esc(eur(x.a,true))+'</span></div>').join("")+
-    '<div class="r"><span><b>Total TTC</b> · dont TVA 10 %</span><span><b>'+esc(eur(C.tot,true))+'</b> · '+esc(eur(C.tot-C.tot/1.1,true))+'</span></div>';
+    '<div class="r"><span><b>Total TTC</b> · dont TVA 10 %</span><span><b>'+esc(eur(C.tot,true))+'</b> · '+esc(eur(C.tot-C.tot/1.1,true))+'</span></div>'+
+    (Math.abs(C.tot-C.ride)>0.005?'<div class="r"><span style="color:var(--warn)">Le montant de la course passera de '+esc(eur(C.ride,true))+' à '+esc(eur(C.tot,true))+'</span><span></span></div>':'');
   const ok=C.b>0&&C.w>=0&&ivCtx.from.trim()&&ivCtx.to.trim();$("ivMake").disabled=!ok;
   $("ivMakeR").textContent=!(C.b>0)?"prix de base":C.w<0?"base + suppléments > total":!ivCtx.from.trim()||!ivCtx.to.trim()?"départ et arrivée":"total "+eur(C.tot,true);}
 $("ivMake").onclick=()=>{if($("ivMake").disabled)return;const r=rideOf(ivCtx.d,ivCtx.id);if(!r)return;const C=invCalc();
   const rt=(r.t||"00:00");const inv={no:r.inv?r.inv.no:nextInvNo(),d:ivCtx.d+"T"+(r.f||rt),f:ivCtx.from.trim(),t:ivCtx.to.trim(),b:C.b,w:Math.max(0,C.w),tot:C.tot,i:C.ex.map(x=>[(x.l||"").trim()||(x.k==="ar"?"Aller / retour":"Dépose intermédiaire"),r2(x.a)])};
   if(!inv.i.length)delete inv.i;
-  setRide(ivCtx.d,ivCtx.id,{inv});$("invSheet").hidden=true;renderDay();showInvQr(ivCtx.d,ivCtx.id);};
+  const patch={inv};if(Math.abs(C.tot-C.ride)>0.005)patch.a=C.tot;
+  setRide(ivCtx.d,ivCtx.id,patch);$("invSheet").hidden=true;renderDay();showInvQr(ivCtx.d,ivCtx.id);};
 let iqUrl="";
 function showInvQr(d,id){const r=rideOf(d,id);if(!r||!r.inv)return;iqUrl=invUrl(r);
   $("iqTitle").textContent="Facture "+r.inv.no;
