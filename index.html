@@ -431,7 +431,7 @@ input,select{font-size:16px}
 .payrow .pa{font-family:var(--f-num);font-size:1.15rem;font-weight:600}
 .payrow[aria-pressed="true"] .pa{color:var(--ok)}.payrow[aria-pressed="false"] .pa{color:var(--red-fg)}
 a.btn{text-decoration:none;text-align:center;display:inline-flex;align-items:center;justify-content:center}
-.invbar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:15;display:flex;align-items:center;gap:8px;padding:8px 8px 8px 14px;border-radius:14px;background:var(--panel);border:1px solid var(--gold-line);box-shadow:0 10px 30px rgba(0,0,0,.35);max-width:calc(100% - 24px);font-size:.85rem;font-weight:600}
+.invbar{position:fixed;left:50%;transform:translateX(-50%);top:calc(50px + env(safe-area-inset-top,0px));z-index:15;display:flex;align-items:center;gap:8px;padding:8px 8px 8px 14px;border-radius:14px;background:var(--panel);border:1px solid var(--gold-line);box-shadow:0 10px 30px rgba(0,0,0,.35);max-width:calc(100% - 24px);font-size:.85rem;font-weight:600}
 .invbar span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .invbar button{border:0;border-radius:10px;padding:9px 14px;font-family:var(--f-num);font-size:1.05rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;background:var(--grad);color:var(--on-gold);white-space:nowrap}
 .invbar .ix{background:transparent;color:var(--muted);padding:6px 8px;font-size:1.2rem}
@@ -440,6 +440,7 @@ a.btn{text-decoration:none;text-align:center;display:inline-flex;align-items:cen
 .ride .acts{display:flex;align-items:center;gap:2px}
 .ride .ib{border:1px solid var(--gold-line);background:transparent;color:var(--gold);border-radius:8px;padding:5px 8px;font-size:.72rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase}
 .ride .ib.done{background:var(--gold-bg)}
+/*PERSO_CSS*/
 button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--violet);outline-offset:2px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
@@ -560,6 +561,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
       </div>
     </div>
     <div class="chips" id="fareChips"></div>
+<!--PERSO_DETAILS-->
     <div class="annpanel" id="annPanel" hidden><b>Course annulée</b><span>Comment le client avait-il commandé ?</span><div class="annsrc"><button type="button" id="annApp" aria-pressed="true"><span>Application</span><small id="annAppAmt"></small></button><button type="button" id="annTel" aria-pressed="false"><span>Téléphone</span><small>0 €</small></button></div><span id="annTx"></span></div>
     <button class="savebtn" id="saveBtn" type="button"><span class="sl">Enregistrer</span><span class="sr" id="saveR"></span></button>
   </div>
@@ -883,9 +885,12 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 <script>
 "use strict";
 /* ================= ARCHIV · noyau ================= */
-const APPV="1.3.1";
+const PERSO=false; // remplacé par true pour la version perso
+const APPV="1.3.5";
 const CONTACT="Noaro.taxi@gmail.com";
 const APP_URL_DEFAULT="https://adminarcher.github.io/archiv/";
+const APP_NAME="Archiv";
+
 const $=id=>document.getElementById(id);
 const CA_TVA=10; // TVA contenue dans le CA des courses (transport de personnes)
 
@@ -992,7 +997,8 @@ function stats(rides){
   for(const r of rides){
     if(r.x){s.ann++;if(r.src==="tel")s.annTel++;s.caAnn+=+r.a||0;continue;}
     s.n++;s.ca+=+r.a||0;if(r.v){s.van++;s.caVan+=+r.a||0;}
-    const z=destOf(r);s.zone[z]=s.zone[z]||{n:0,ca:0};s.zone[z].n++;s.zone[z].ca+=+r.a||0;}
+    const z=destOf(r);s.zone[z]=s.zone[z]||{n:0,ca:0};s.zone[z].n++;s.zone[z].ca+=+r.a||0;
+}
   s.total=s.ca+s.caAnn;s.avg=s.n?s.ca/s.n:0;return s;}
 function annSrc(r){return r.src==="tel"?"téléphone":"appli";}
 function lineOf(r){const a=String(r.a||0).replace(".",",");
@@ -1042,7 +1048,7 @@ $("endBtn").onclick=()=>armBtn($("endBtn"),"Confirmer la fin",endDay);
 $("pauseView").addEventListener("click",e=>{if(e.target.id==="pzEnd")armBtn(e.target,"Confirmer la fin",endDay);});
 
 /* ================= saisie d'une course ================= */
-const form={a:null,base:null,x:false,xs:"app",v:false,dest:null};
+const form={a:null,base:null,x:false,xs:"app",v:false,dest:null,c:"",g:null,y:null};
 let active=LS.get("active",null);let timerId=null;
 function renderChips(){const C=$("fareChips");C.innerHTML="";const F=directFares();
   C.classList.toggle("van",form.v);C.classList.toggle("r1",F.length<=5);C.style.setProperty("--cols",F.length<=5?Math.max(1,F.length):F.length<=8?4:5);
@@ -1088,7 +1094,7 @@ $("goBtn").onclick=()=>{if(active){toast("Course en cours : saisis le montant pu
 $("abortBtn").onclick=()=>{const b=$("abortBtn");
   if(!b.classList.contains("armed")){b.classList.add("armed");toast("Touche encore ✕ pour annuler le départ");setTimeout(()=>b.classList.remove("armed"),3000);return;}
   b.classList.remove("armed");active=null;LS.del("active");renderGo();toast("Départ annulé");};
-function resetForm(){active=null;LS.del("active");Object.assign(form,{a:null,base:null,x:false,xs:"app",v:false,dest:null});$("amount").value="";renderChips();renderForm();renderGo();}
+function resetForm(){active=null;LS.del("active");Object.assign(form,{a:null,base:null,x:false,xs:"app",v:false,dest:null,c:"",g:null,y:null});$("amount").value="";renderChips();renderForm();renderGo();}
 $("saveBtn").onclick=()=>{if($("saveBtn").disabled)return;if(form.x||form.dest)commitRide();else openDest();};
 function commitRide(){
   const now=new Date();const st=active&&active.start?new Date(active.start):null;
@@ -1098,6 +1104,7 @@ function commitRide(){
   if(active&&active.rs&&!active.cl){const RR=resas.find(x=>x.id===active.rs);if(RR&&RR.kind==="recu"){r.rs=RR.id;r.ptk=ptKeyOf(RR);r.ptPay=RR.pay;
     r.cln=(RR.clientName||"Client")+" (via "+fromName(RR)+")";if(RR.pay==="collegue"&&!(r.x&&!(r.a>0)))r.npt=1;}}
   if(active&&active.cl){const c=cliById(active.cl);r.cl=active.cl;r.cln=c?cliName(c):(active.cln||"");if(c&&c.mode==="compte"&&!(r.x&&!(r.a>0)))r.np=1;if(active.rs)r.rs=active.rs;}
+  
   if(!form.x){if(st)r.dur=Math.max(1,Math.round((now-st)/60000));if(form.v)r.v=1;if(form.dest)r.dest=form.dest;}
   days[k]=(days[k]||[]).concat([r]);save("days");
   if(r.rs){const R=resas.find(x=>x.id===r.rs);if(R){R.st=r.x?"annulee":"faite";R.ride={d:k,id:r.id};save("resas");}}
@@ -1326,6 +1333,7 @@ function renderAna(){
   if(!rides.length){V.innerHTML='<div class="card"><div class="empty">Aucune course sur cette période. Les graphiques apparaîtront dès tes premières saisies.</div></div>'+splitCard(R,rides,workIn(R));return;}
   const s=stats(rides);const A=analyse(rides,R);const dks=Object.keys(A.byDay);const nDays=dks.length;
   const ins=[];
+  
   ins.push([eur(s.total/nDays),"par jour travaillé en moyenne","soit "+(s.n/nDays).toFixed(1).replace(".",",")+" courses par jour sur "+plural(nDays,"jour")]);
   if(nDays>1){const best=dks.reduce((m,k)=>A.byDay[k].ca>A.byDay[m].ca?k:m,dks[0]);ins.push([eur(A.byDay[best].ca),"ton meilleur jour",WDL[wdOf(best)]+" "+fmtK(best)+" · "+plural(A.byDay[best].n,"course")]);}
   let bs=null;A.heat.forEach((row,w)=>row.forEach((c,i)=>{if(c.n&&(!bs||c.ca>bs.ca))bs={w,i,ca:c.ca,n:c.n};}));
@@ -1343,6 +1351,7 @@ function renderAna(){
       '<div class="note">'+plural(WA.length,"journée")+' · moyenne '+dur(S.tot/WA.length)+' par journée, dont '+dur(S.eff/WA.length)+' effectives</div></div>';}
   else h+='<div class="card quiet"><div class="label">Heures de travail</div><div class="note">Utilise Débuter la journée, Pause et Fin de journée pour suivre tes heures.</div></div>';
   h+=splitCard(R,rides,WA);
+  
   {const D=durStats(rides);
     h+='<div class="card"><div class="label">Temps moyen par course</div>';
     if(D.n)h+='<div><span class="big1">'+Math.round(D.min/D.n)+' min</span><div class="note">sur '+plural(D.n,"course")+' lancée'+(D.n>1?"s":"")+' avec Départ</div></div><div class="sub">Par destination</div>'+minBars(D.zone,destOrder(D.zone),k=>k);
@@ -1651,10 +1660,12 @@ function buildPdf(R,rides,extra){
   const head={fillColor:INK,textColor:255,fontStyle:"bold"};const base={theme:"striped",headStyles:head,styles:{fontSize:9,cellPadding:2},margin:{left:14,right:14}};
   const syn=[["Chiffre d'affaires TTC",eur(s.total,true)],["Courses réalisées",String(s.n)],["Panier moyen",eur(s.avg,true)],["Jours travaillés",String(nDays)],["Courses annulées",s.ann+" ("+eur(s.caAnn,true)+")"]];
   if(s.van||hasVan())syn.push(["Courses van",s.van+" ("+eur(s.caVan,true)+")"]);
+  
   doc.autoTable(Object.assign({},base,{startY:36,head:[["Synthèse",""]],body:syn.concat(extra||[]),columnStyles:{1:{halign:"right",fontStyle:"bold"}}}));
   const zk=destOrder(s.zone).filter(k=>s.zone[k]);
   if(zk.length)doc.autoTable(Object.assign({},base,{startY:doc.lastAutoTable.finalY+6,head:[["Destination","Courses","%","CA"]],
     body:zk.map(k=>[k==="?"?"Non renseigné":k,String(s.zone[k].n),(s.n?Math.round(s.zone[k].n/s.n*100):0)+" %",eur(s.zone[k].ca,true)]),columnStyles:{1:{halign:"right"},2:{halign:"right"},3:{halign:"right"}}}));
+  
   const D=durStats(rides);
   if(D.n){const ord=destOrder(D.zone);
     doc.autoTable(Object.assign({},base,{startY:doc.lastAutoTable.finalY+6,head:[["Durée moyenne des courses ("+Math.round(D.min/D.n)+" min en moyenne)","Courses","Durée"]],
@@ -1706,6 +1717,7 @@ function buildXlsx(R,rides,shiftList,type){
     if(S.eff>9e5)sum.push(["CA par heure effective (€)",+(s.total/(S.eff/36e5)).toFixed(2)]);
     const TS=timeSplit(R,rides,workIn(R));if(TS&&TS.stationKnown)sum.push(["dont en course (h)"+(TS.est?" · en partie estimé":""),+(TS.ride/60).toFixed(2)],["dont en station (h)",+(TS.station/60).toFixed(2)],["dont à vide : retours, approches (h)",+(TS.empty/60).toFixed(2)]);}
   const D=durStats(rides);if(D.n)sum.push([],["Durée moyenne d'une course (min)",Math.round(D.min/D.n)]);
+  
   sum.push([],["Destination","Courses","CA (€)"]);destOrder(s.zone).forEach(k=>{if(s.zone[k])sum.push([k,s.zone[k].n,r2(s.zone[k].ca)]);});
   const ws1=XLSX.utils.aoa_to_sheet(sum);ws1["!cols"]=[{wch:36},{wch:12},{wch:12}];XLSX.utils.book_append_sheet(wb,ws1,"Synthèse");
   const rows=[["Date","Départ","Fin","Durée (min)","Montant (€)","Van","Annulée","Destination","Client","Paiement","Facture n°"]].concat(rides.map(r=>[fmtK(r.d),hh(r.t),hh(r.f),r.dur||"",+r.a||0,r.v?"oui":"",r.x?annSrc(r):"",r.x?"":destOf(r),r.cln||"",r.cl?(r.np?"à encaisser":r.pp?"payée le "+fmtK(r.pp):"payée"):r.ptk?(r.ptPay==="collegue"?(r.npt?"à encaisser (collègue)":"payée par le collègue"):"client direct"):"",r.inv?r.inv.no:""]));
@@ -2175,6 +2187,7 @@ function showInvBar(d,id){const r=rideOf(d,id);if(!r)return;invBarRef={d,id};$("
 $("invBarX").onclick=()=>{$("invBar").hidden=true;};
 $("invBarGo").onclick=()=>{$("invBar").hidden=true;if(invBarRef)openInvoice(invBarRef.d,invBarRef.id);};
 $("goBtn").addEventListener("click",()=>{$("invBar").hidden=true;});
+$("rideView").addEventListener("pointerdown",e=>{if(!e.target.closest("#invBar")&&e.target.closest("#fareChips,#amount,#details,#cancelled,#vanBtn"))$("invBar").hidden=true;});
 
 function openInvoice(d,id){const r=rideOf(d,id);if(!r)return;const I=r.inv||null;
   const dest=r.dest||zoneOf(baseOf(r))||"";
