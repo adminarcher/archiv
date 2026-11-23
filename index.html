@@ -886,7 +886,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 "use strict";
 /* ================= ARCHIV · noyau ================= */
 const PERSO=false; // remplacé par true pour la version perso
-const APPV="1.3.7";
+const APPV="1.3.8";
 const CONTACT="Noaro.taxi@gmail.com";
 const APP_URL_DEFAULT="https://adminarcher.github.io/archiv/";
 const APP_NAME="Archiv";
@@ -1797,9 +1797,11 @@ async function periodFiles(R,rides,shiftList,extra,opts){
   if(opts&&opts.data){const js=await buildBackup(false);const n="Archiv-donnees_"+dayKey(new Date());
     files.push({name:n+".json",blob:new Blob([js],{type:"application/json"}),type:"application/json",alt:{name:n+".txt",blob:new Blob([js],{type:"text/plain"}),type:"text/plain"}});}
   return {files,inv:inv.length,miss};}
+function linesTxt(R,rides){const multi=R.from!==R.to;const out=[];let d=null;
+  rides.forEach(r=>{if(multi&&r.d!==d){d=r.d;out.push((out.length?"\n":"")+fmtK(d));}out.push(lineOf(r));});return out;}
 function mailText(R,rides){const s=stats(rides);const L=["ARCHIV · "+(who()||""),R.name,"Chiffre d’affaires : "+eur(s.total,true),"Courses : "+s.n+(s.ann?" (+ "+s.ann+" annulée"+(s.ann>1?"s":"")+")":"")+(s.van?" · dont "+s.van+" van":"")];
   const EX=expIn(R);if(EX.length){const ES=expSum(EX);L.push("Dépenses : "+ES.n+" · TTC "+eur(ES.ttc,true)+" · TVA "+eur(ES.tva,true));}
-  
+  if(rides.length)L.push("",PERSO?"Lignes :":"Courses du jour :",...linesTxt(R,rides));
   return L.join("\n");}
 function fileCountTxt(F){return plural(F.files.length,"fichier");}
 
