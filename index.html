@@ -886,7 +886,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 "use strict";
 /* ================= ARCHIV · noyau ================= */
 const PERSO=false; // remplacé par true pour la version perso
-const APPV="1.3.5";
+const APPV="1.3.6";
 const CONTACT="Noaro.taxi@gmail.com";
 const APP_URL_DEFAULT="https://adminarcher.github.io/archiv/";
 const APP_NAME="Archiv";
@@ -1094,7 +1094,7 @@ $("goBtn").onclick=()=>{if(active){toast("Course en cours : saisis le montant pu
 $("abortBtn").onclick=()=>{const b=$("abortBtn");
   if(!b.classList.contains("armed")){b.classList.add("armed");toast("Touche encore ✕ pour annuler le départ");setTimeout(()=>b.classList.remove("armed"),3000);return;}
   b.classList.remove("armed");active=null;LS.del("active");renderGo();toast("Départ annulé");};
-function resetForm(){active=null;LS.del("active");Object.assign(form,{a:null,base:null,x:false,xs:"app",v:false,dest:null,c:"",g:null,y:null});$("amount").value="";renderChips();renderForm();renderGo();}
+function resetForm(keep){if(!keep){active=null;LS.del("active");}Object.assign(form,{a:null,base:null,x:false,xs:"app",v:false,dest:null,c:"",g:null,y:null});$("amount").value="";renderChips();renderForm();renderGo();}
 $("saveBtn").onclick=()=>{if($("saveBtn").disabled)return;if(form.x||form.dest)commitRide();else openDest();};
 function commitRide(){
   const now=new Date();const st=active&&active.start?new Date(active.start):null;
@@ -1673,6 +1673,7 @@ function buildPdf(R,rides,extra){
   const SP=specialIn(R,rides);
   if(SP.list.length)doc.autoTable(Object.assign({},base,{startY:doc.lastAutoTable.finalY+6,head:[["Jours particuliers","CA du jour"]],
     body:SP.list.map(x=>[fmtK(x.d)+" · "+x.txt,eur(x.ca,true)]).concat(SP.nNormal?[["Moyenne des jours normaux ("+SP.nNormal+" j)",eur(SP.nAvg,true)]]:[]),columnStyles:{1:{halign:"right"}}}));
+  
   if(rides.length){doc.addPage();
     doc.setTextColor(...INK);doc.setFont("helvetica","bold");doc.setFontSize(12);doc.text("Détail des courses",14,16);
     doc.autoTable(Object.assign({},base,{startY:20,head:[["Date","Départ","Fin","Durée","Montant","Van","Destination"]],
@@ -1719,6 +1720,7 @@ function buildXlsx(R,rides,shiftList,type){
   const D=durStats(rides);if(D.n)sum.push([],["Durée moyenne d'une course (min)",Math.round(D.min/D.n)]);
   
   sum.push([],["Destination","Courses","CA (€)"]);destOrder(s.zone).forEach(k=>{if(s.zone[k])sum.push([k,s.zone[k].n,r2(s.zone[k].ca)]);});
+  
   const ws1=XLSX.utils.aoa_to_sheet(sum);ws1["!cols"]=[{wch:36},{wch:12},{wch:12}];XLSX.utils.book_append_sheet(wb,ws1,"Synthèse");
   const rows=[["Date","Départ","Fin","Durée (min)","Montant (€)","Van","Annulée","Destination","Client","Paiement","Facture n°"]].concat(rides.map(r=>[fmtK(r.d),hh(r.t),hh(r.f),r.dur||"",+r.a||0,r.v?"oui":"",r.x?annSrc(r):"",r.x?"":destOf(r),r.cln||"",r.cl?(r.np?"à encaisser":r.pp?"payée le "+fmtK(r.pp):"payée"):r.ptk?(r.ptPay==="collegue"?(r.npt?"à encaisser (collègue)":"payée par le collègue"):"client direct"):"",r.inv?r.inv.no:""]));
   const ws2=XLSX.utils.aoa_to_sheet(rows);ws2["!cols"]=[{wch:11},{wch:7},{wch:7},{wch:10},{wch:11},{wch:6},{wch:8},{wch:28},{wch:22},{wch:18},{wch:11}];XLSX.utils.book_append_sheet(wb,ws2,"Courses");
@@ -1797,6 +1799,7 @@ async function periodFiles(R,rides,shiftList,extra,opts){
   return {files,inv:inv.length,miss};}
 function mailText(R,rides){const s=stats(rides);const L=["ARCHIV · "+(who()||""),R.name,"Chiffre d’affaires : "+eur(s.total,true),"Courses : "+s.n+(s.ann?" (+ "+s.ann+" annulée"+(s.ann>1?"s":"")+")":"")+(s.van?" · dont "+s.van+" van":"")];
   const EX=expIn(R);if(EX.length){const ES=expSum(EX);L.push("Dépenses : "+ES.n+" · TTC "+eur(ES.ttc,true)+" · TVA "+eur(ES.tva,true));}
+  
   return L.join("\n");}
 function fileCountTxt(F){return plural(F.files.length,"fichier");}
 
@@ -2352,7 +2355,7 @@ function wireSet(){
   $("stProfSave").onclick=()=>{const em=$("stEmail").value.trim();if(em&&!validEmail(em)){toast("Adresse email invalide");return;}
     if(!$("stName").value.trim()||!$("stLic").value.trim()){toast("Nom et n° de licence obligatoires");return;}
     Object.assign(profile,{name:$("stName").value.trim(),lic:$("stLic").value.trim(),plate:$("stPlate").value.trim().toUpperCase(),email:em});save("profile");toast("Profil enregistré");};
-  $("stVan").onclick=()=>{profile.van=!profile.van;save("profile");renderSet();resetForm();};
+  $("stVan").onclick=()=>{profile.van=!profile.van;save("profile");renderSet();resetForm(true);};
   if($("stVanOk"))$("stVanOk").onclick=()=>{const v=num($("stVanPct").value);if(v==null||v<0||v>300){toast("Pourcentage invalide");return;}profile.vanPct=v;save("profile");renderSet();toast("Majoration van : "+v+" %");};
   $("viewSet").querySelectorAll("[data-g]").forEach(b=>b.onclick=()=>openGrid(+b.dataset.g));
   $("stGridAdd").onclick=()=>openGrid(null);
@@ -2413,7 +2416,7 @@ function renderAll(){if(!profile||locked)return;renderCourse();if(tab!=="set")re
 /* ================= démarrage ================= */
 applyTheme();
 if(!profile)showWelcome();
-else{$("topbar").hidden=false;resetForm();if(settings.lock)lockNow();else{showTab("in");}renderBanners();}
+else{$("topbar").hidden=false;resetForm(true);if(settings.lock)lockNow();else{showTab("in");}renderBanners();}
 setInterval(()=>{if(!document.hidden&&tab==="in"&&profile&&!locked)renderDay();},60000);
 if("serviceWorker" in navigator&&/^https?:$/.test(location.protocol)&&!inClaude()){
   window.addEventListener("load",()=>{navigator.serviceWorker.register("sw.js").then(reg=>{
